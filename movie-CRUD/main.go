@@ -13,14 +13,14 @@ import (
 
 type Movie struct {
 	ID       string    `json:"id"`
-	Isbn     string    `json: "isbn"`
-	Title    string    `json: "title"`
-	Director *Director `json: "director"`
+	Isbn     string    `json:"isbn"`
+	Title    string    `json:"title"`
+	Director *Director `json:"director"`
 }
 
 type Director struct {
-	FirstName string `json: "firstname`
-	LastName  string `json: "lastname`
+	FirstName string `json:"firstname"`
+	LastName  string `json:"lastname"`
 }
 
 var movies []Movie
@@ -50,15 +50,24 @@ func checkError(err error) {
 }
 
 func testEndpoint(writer http.ResponseWriter, req *http.Request) {
-
 	fmt.Println("trigering the root endpoint")
 	fmt.Fprintf(writer, "Hello world")
+}
+
+func sendNotFoundJsonResponse(writer http.ResponseWriter, notFoundMsg string) {
+	notFoundJson := map[string]string{
+		"message": notFoundMsg,
+	}
+
+	writer.Header().Set("Content-Type", "application/json") // Setting the content type header
+	writer.WriteHeader(http.StatusNotFound)                 // Setting the response code to 404
+	json.NewEncoder(writer).Encode(notFoundJson)            // Sending the response
 }
 
 /* ********************** MOVIE FUNCTIONS ********************** */
 func getMovies(writer http.ResponseWriter, req *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
-	fmt.Println("triggering get movies")
+	fmt.Println("Getting all movies")
 	err := json.NewEncoder(writer).Encode(movies)
 	checkError(err)
 }
@@ -68,6 +77,7 @@ func getMovie(writer http.ResponseWriter, req *http.Request) {
 	encoder := json.NewEncoder(writer)
 
 	idToSearch := mux.Vars(req)["id"]
+	fmt.Printf("Getting movie with id: %v\n", idToSearch)
 
 	for _, movie := range movies {
 		if movie.ID == idToSearch {
@@ -76,7 +86,7 @@ func getMovie(writer http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	encoder.Encode(`{"message": "Movie not found"}`)
+	sendNotFoundJsonResponse(writer, "Movie not found")
 }
 
 func deleteMovie(writer http.ResponseWriter, req *http.Request) {
@@ -84,6 +94,7 @@ func deleteMovie(writer http.ResponseWriter, req *http.Request) {
 
 	params := mux.Vars(req)
 	idToDelete := params["id"]
+	fmt.Printf("Deleting movie with id: %v\n", idToDelete)
 
 	for index, movie := range movies {
 		if movie.ID == idToDelete {
@@ -94,11 +105,11 @@ func deleteMovie(writer http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	notFoundMessage := `{"message": "Movie not found"}`
-	json.NewEncoder(writer).Encode(notFoundMessage)
+	sendNotFoundJsonResponse(writer, "The movie was not deleted, movie not found")
 }
 
 func createMovie(writer http.ResponseWriter, req *http.Request) {
+	fmt.Println("Creating new movie")
 	writer.Header().Set("Content-Type", "application/json")
 
 	// Creating a new movie object from the decoded json sent by the browser
@@ -115,12 +126,28 @@ func createMovie(writer http.ResponseWriter, req *http.Request) {
 }
 
 func updateMovie(writer http.ResponseWriter, req *http.Request) {
-	fmt.Println("trigering update endpoint")
 	writer.Header().Set("Content-Type", "application/json")
 
-	var movie Movie
-	json.NewDecoder(req.Body).Decode(&movie)
-	fmt.Println(movie)
+	params := mux.Vars(req)
+	idToUpdate := params["id"]
+	fmt.Printf("Updating movie with id: %v\n", idToUpdate)
+
+	var updatedMovie Movie
+	json.NewDecoder(req.Body).Decode(&updatedMovie)
+	fmt.Println(updatedMovie)
+
+	for index, movie := range movies {
+		if movie.ID == idToUpdate {
+			movies = append(movies[:index], movies[index+1:]...) // Deleting the element using the index
+
+			movies = append(movies, updatedMovie) // Adding the updated movie data to the list
+
+			json.NewEncoder(writer).Encode(`{"message": "movie updated"}`)
+			return
+		}
+	}
+
+	sendNotFoundJsonResponse(writer, "Movie not updated (id not found)")
 }
 
 func main() {
@@ -132,9 +159,9 @@ func main() {
 	router.HandleFunc("/", testEndpoint).Methods("GET")
 	router.HandleFunc("/movies", getMovies).Methods("GET")
 	router.HandleFunc("/movies/{id}", getMovie).Methods("GET")
-	// router.HandleFunc("/movies", createMovie).Methods("POST")
+	router.HandleFunc("/movies", createMovie).Methods("POST")
 	router.HandleFunc("/movie/{id}", updateMovie).Methods("PUT")
-	router.HandleFunc("/movied/{id}", deleteMovie).Methods("GET")
+	router.HandleFunc("/movie/{id}", deleteMovie).Methods("DELETE")
 
 	fmt.Println("Starting server at port 8080")
 	err := http.ListenAndServe("localhost:8080", router)
