@@ -1,0 +1,10 @@
+services:
+  database:
+    container_name: libraryDB
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+    volumes:
+      - libraryDb
+    ports:
+      - 3306:3306
